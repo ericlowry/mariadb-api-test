@@ -40,7 +40,6 @@ const qt = (s) => '`' + s + '`';
 app.get(
   '/api/player',
   cex(async (req, res) => {
-
     const limit = parseInt(req.query.limit || 100);
     const offset = parseInt(req.query.offset || 0);
 
@@ -53,12 +52,8 @@ app.get(
       OFFSET :offset
     `;
 
-    console.log(sql);
+    const players = await db.query(sql, { limit, offset });
 
-    const players = await db.query(
-      { sql, namedPlaceholders: true },
-      { limit, offset }
-    );
     res.send({
       ok: true,
       players,
@@ -76,7 +71,7 @@ app.get(
       ORDER BY "label"
     `;
 
-    const player = await db.query({ sql, namedPlaceholders: true }, req.params );
+    const player = await db.query(sql, req.params);
     if (!player.length) throw APIError(403, 'Player Not Found');
     res.send({
       ok: true,

@@ -1,5 +1,5 @@
 //
-// usage:
+// usage: generate an SQL statement with "namedPlaceholders"
 //
 // const sql = SQL`SELECT * FROM "player" where id = :playerId`;
 // const player = db.query(sql,{playerId:'tom'});
