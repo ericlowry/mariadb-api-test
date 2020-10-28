@@ -35,7 +35,68 @@ const APIError = (status, message, reason = undefined) => {
 //
 const cex = (fn) => (...args) => fn(...args).catch(args[2]);
 
-const qt = (s) => '`' + s + '`';
+app.get('/api/users', cex(async (req, res, next) => {
+  const limit = Math.min(100, parseInt(req.query.limit || 10));
+  const offset = parseInt(req.query.offset || 0);
+
+  console.log(limit);
+
+  const users = await db.query(SQL`SELECT * FROM "users" LIMIT :limit OFFSET :offset`, { limit, offset });
+
+  const roles = await db.query(SQL`
+      SELECT * FROM "user_roles" 
+      WHERE "user_id" IN (:userids)`, { limit, offset, userids: users.map(user => user.id) });
+
+  users.forEach(user => {
+      user.roles = [];
+      roles.filter(role => role.user_id === user.id).forEach(role => {
+          user.roles.push(role.role_id);
+      })
+  });
+
+  res.send({ ok: true, users });
+}));
+
+app.get('/api/user/:id', cex(async (req, res, next) => {
+  const users = await db.query(SQL`SELECT * FROM "users" WHERE "id" = :id`, req.params);
+  if (!users.length) throw httpError(404, "User Not Found", `No user ${req.params.id}`);
+  const user = users[0];
+  const roles = await db.query(SQL`SELECT * FROM "user_roles" WHERE "user_id" = :id`, req.params);
+  user.roles = roles.map(r => r.role_id);
+  res.send({ ok: true, user });
+}));
+
+app.post('/api/user', cex(async (req, res, next) => {
+  console.log(req.body);
+  const conn = await db.getConnection();
+  
+  await conn.beginTransaction();
+
+  try {
+      const result = await conn.query(SQL`
+      INSERT INTO "users" ( "id", "label", "email", "password", "version" ) 
+      VALUES ( :id, :label, :email, :password, :version )`, req.body);
+
+      const roles = req.body.roles || [];
+
+      for (i = 0; i < roles.length; i++) {
+          await conn.query(SQL`
+          INSERT INTO "user_roles" ("user_id","role_id") 
+          VALUES ( :user_id, :role_id )
+          `, { user_id: req.body.id, role_id: roles[i] })
+      }
+
+      console.log('committing');
+      await conn.commit();
+
+  } catch (err) {
+      console.log('rolling back!');
+      await conn.rollback();
+      throw err;
+  }
+
+  res.send({ ok: true });
+}));
 
 app.get(
   '/api/player',
